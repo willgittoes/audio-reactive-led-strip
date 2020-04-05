@@ -3,8 +3,10 @@ from __future__ import print_function
 from __future__ import division
 import os
 
-DEVICE = 'esp8266'
-"""Device used to control LED strip. Must be 'pi',  'esp8266' or 'blinkstick'
+DEVICE = 'udpi'
+"""Device used to control LED strip. Must be 'udpi', 'pi',  'esp8266' or 'blinkstick'
+
+'udpi' is an rpi that receives PNGs over UDP.
 
 'esp8266' means that you are using an ESP8266 module to control the LED strip
 and commands will be sent to the ESP8266 over WiFi.
@@ -15,6 +17,12 @@ audio input and control the LED strip directly.
 'blinkstick' means that a BlinkstickPro is connected to this PC which will be used
 to control the leds connected to it.
 """
+
+if DEVICE == 'udpi':
+    UDP_IP = '192.168.1.165'
+    UDP_PORT = 42069  # eyyyyyyy
+    """For now, just simply repeat the same linear pattern COLS number of times"""
+    COLS = 6
 
 if DEVICE == 'esp8266':
     UDP_IP = '192.168.0.150'
@@ -48,7 +56,7 @@ USE_GUI = True
 DISPLAY_FPS = True
 """Whether to display the FPS when running (can reduce performance)"""
 
-N_PIXELS = 60
+N_PIXELS = 144
 """Number of pixels in the LED strip (must match ESP8266 firmware)"""
 
 GAMMA_TABLE_PATH = os.path.join(os.path.dirname(__file__), 'gamma_table.npy')

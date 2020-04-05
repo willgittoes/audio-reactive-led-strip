@@ -4,9 +4,11 @@ from __future__ import division
 import platform
 import numpy as np
 import config
+import png
+import io
 
 # ESP8266 uses WiFi communication
-if config.DEVICE == 'esp8266':
+if config.DEVICE == 'esp8266' or config.DEVICE == 'udpi':
     import socket
     _sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 # Raspberry Pi controls the LED strip directly
@@ -20,7 +22,8 @@ elif config.DEVICE == 'blinkstick':
     from blinkstick import blinkstick
     import signal
     import sys
-    #Will turn all leds off when invoked.
+    # Will turn all leds off when invoked.
+
     def signal_handler(signal, frame):
         all_off = [0]*(config.N_PIXELS*3)
         stick.set_led_data(0, all_off)
@@ -41,6 +44,7 @@ pixels = np.tile(1, (3, config.N_PIXELS))
 """Pixel values for the LED strip"""
 
 _is_python_2 = int(platform.python_version_tuple()[0]) == 2
+
 
 def _update_esp8266():
     """Sends UDP packets to ESP8266 to update LED strip values
@@ -83,6 +87,25 @@ def _update_esp8266():
     _prev_pixels = np.copy(p)
 
 
+def _update_udpi():
+    """Sends UDP packets to RPi to update LED strip values
+
+    The packet encoding scheme is png images.
+    """
+    global pixels, _prev_pixels
+    # Truncate values and cast to integer
+    pixels = np.clip(pixels, 0, 255).astype(np.uint8)
+    # Expand to COLS, arrange as rows([r,g,b,r,g,b,...], [...], ...), and convert to png.
+    img_pixels = np.tile(pixels.T, (config.COLS))
+    img = png.from_array(img_pixels.copy(), mode='RGB')
+
+    with io.BytesIO() as f:
+        img.write(f)
+        _sock.sendto(f.getvalue(), (config.UDP_IP, config.UDP_PORT))
+
+    _prev_pixels = np.copy(pixels)
+
+
 def _update_pi():
     """Writes new LED values to the Raspberry Pi's LED strip
 
@@ -108,12 +131,13 @@ def _update_pi():
     _prev_pixels = np.copy(p)
     strip.show()
 
+
 def _update_blinkstick():
     """Writes new LED values to the Blinkstick.
         This function updates the LED strip with new values.
     """
     global pixels
-    
+
     # Truncate values and cast to integer
     pixels = np.clip(pixels, 0, 255).astype(int)
     # Optional gamma correction
@@ -123,7 +147,7 @@ def _update_blinkstick():
     g = p[1][:].astype(int)
     b = p[2][:].astype(int)
 
-    #create array in which we will store the led states
+    # create array in which we will store the led states
     newstrip = [None]*(config.N_PIXELS*3)
 
     for i in range(config.N_PIXELS):
@@ -131,13 +155,15 @@ def _update_blinkstick():
         newstrip[i*3] = g[i]
         newstrip[i*3+1] = r[i]
         newstrip[i*3+2] = b[i]
-    #send the data to the blinkstick
+    # send the data to the blinkstick
     stick.set_led_data(0, newstrip)
 
 
 def update():
     """Updates the LED strip values"""
-    if config.DEVICE == 'esp8266':
+    if config.DEVICE == 'udpi':
+        _update_udpi()
+    elif config.DEVICE == 'esp8266':
         _update_esp8266()
     elif config.DEVICE == 'pi':
         _update_pi()
